@@ -24,7 +24,6 @@ body {
     background-size: 32px 32px; /* 격자 타일 사이즈 */
     background-position: center top;
     color: var(--text-main);
-    user-select: none;
 }
 
 /* 네비게이션 - 볼드한 경계선 */
