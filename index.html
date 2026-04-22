@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 성과 분석 솔루션</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <img src="제일기획 로고.png" alt="Cheil Logo" class="nav-brand-logo">
+        </div>
+        <button id="api-key-btn" class="btn-settings">API KEY SETUP</button>
+    </nav>
+
+    <header class="hero-kv">
+        <h1 class="hero-title">YOUTUBE STATS ANALYZER</h1>
+        <p class="hero-subtitle">DATA-DRIVEN PERFORMANCE INSIGHTS</p>
+    </header>
+
+    <div id="api-key-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>YouTube API Key 설정</h2>
+            <p>이 웹앱은 사용자의 브라우저에서 직접 데이터를 가져옵니다. 본인의 API 키를 입력해주세요.</p>
+
+            <details class="api-guide-details">
+                <summary>API 키 발급 방법을 모르시나요? (가이드 열기)</summary>
+                <div class="api-guide-content">
+                    <ol>
+                        <li><a href="https://console.cloud.google.com/" target="_blank" class="accent-link">Google Cloud Console</a>에 접속 및 로그인합니다.</li>
+                        <li>화면 상단에서 <b>[새 프로젝트]</b>를 생성합니다.</li>
+                        <li>좌측 메뉴 <b>[API 및 서비스] &gt; [라이브러리]</b>로 이동합니다.</li>
+                        <li>"YouTube Data API v3"를 검색하고 <b>[사용]</b> 버튼을 누릅니다.</li>
+                        <li>좌측 메뉴 <b>[사용자 인증 정보]</b>로 이동해 상단의 <b>[인증 정보 만들기] &gt; [API 키]</b>를 클릭합니다.</li>
+                        <li>생성된 "AIzaSy..." 로 시작하는 키를 복사하여 아래 입력칸에 붙여넣습니다.</li>
+                    </ol>
+                </div>
+            </details>
+
+            <input type="text" id="api-key-input" placeholder="AIzaSy...">
+            <div class="modal-actions">
+                <button id="save-key-btn" class="btn-primary">저장 및 닫기</button>
+                <button id="close-modal-btn" class="btn-secondary">취소</button>
+            </div>
+            <p class="modal-hint">※ 입력하신 키는 서버로 전송되지 않으며 <br>브라우저(로컬 스토리지)에만 안전하게 보관됩니다.</p>
+        </div>
+    </div>
+
+    <main class="container">
+        <!-- 탭 메뉴 -->
+        <div class="tabs">
+            <button class="tab-btn active" data-target="tab-1">1. 채널 종합 분석</button>
+            <button class="tab-btn" data-target="tab-2">2. 단일 영상 댓글 추출</button>
+            <button class="tab-btn" data-target="tab-3">3. 다중 영상 댓글 추출</button>
+        </div>
+
+        <div class="glass-panel">
+            <!-- 탭 1 -->
+            <div id="tab-1" class="tab-content active">
+                <h3>채널 영상 지표 일괄 수집</h3>
+                <p class="tab-desc">특정 채널의 영상 목록과 각 영상별 성과(조회수, 좋아요, 댓글 수 등) 데이터를 엑셀로 요약해 추출합니다.</p>
+                
+                <div class="step-box">
+                    <div class="step-header">STEP 1. 채널 주소 입력</div>
+                    <div class="step-content">
+                        <label>분석할 채널 주소 (핸들 또는 URL 입력)</label>
+                        <div class="dynamic-inputs" id="t1-input-container">
+                            <div class="input-row">
+                                <input type="text" class="t1-channel" placeholder="예: @SonyMusic, www.youtube.com/@SonyMusic">
+                                <button type="button" class="btn-icon btn-remove" onclick="removeInput(this)" disabled>×</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-add" onclick="addInput('t1-input-container', 't1-channel', '채널 주소 추가 입력')">+ 채널 추가</button>
+                    </div>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">STEP 2. 옵션 설정</div>
+                    <div class="step-content">
+                        <div class="segmented-control">
+                            <label class="segment-label">
+                                <input type="radio" name="t1-opt" value="recent" checked>
+                                <div class="segment-btn">최근 N개 영상</div>
+                            </label>
+                            <label class="segment-label">
+                                <input type="radio" name="t1-opt" value="date">
+                                <div class="segment-btn">특정 기간 설정</div>
+                            </label>
+                        </div>
+
+                        <div class="accordion-container">
+                            <div id="t1-recent-params" class="accordion-panel open form-group">
+                                <label>추출할 최근 영상 개수</label>
+                                <input type="number" id="t1-recent-n" placeholder="예: 20" value="20">
+                            </div>
+
+                            <div id="t1-date-params" class="accordion-panel form-group">
+                                <label>조회 시작일</label>
+                                <input type="date" id="t1-start-date" style="margin-bottom:12px;">
+                                <label>조회 종료일</label>
+                                <input type="date" id="t1-end-date">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">STEP 3. 데이터 추출 실행</div>
+                    <div class="step-content">
+                        <button id="t1-run" class="btn-run">
+                            <span class="btn-main-text">EXTRACT DATA</span>
+                            <span class="btn-sub-text">분석 완료 후 엑셀 파일을 자동 다운로드합니다.</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 2 -->
+            <div id="tab-2" class="tab-content hidden">
+                <h3>단일 영상 댓글 추출 (대댓글 포함)</h3>
+                <p class="tab-desc">특정 유튜브 영상 1개를 지정해 시청자들이 남긴 모든 댓글과 대댓글 내용을 엑셀 원본 데이터로 수집합니다.</p>
+                
+                <div class="step-box">
+                    <div class="step-header">STEP 1. 영상 주소 입력</div>
+                    <div class="step-content form-group">
+                        <label>영상 주소 (고유ID 또는 재생 주소)</label>
+                        <div class="dynamic-inputs" id="t2-input-container">
+                            <div class="input-row">
+                                <input type="text" class="t2-video" placeholder="예: https://www.youtube.com/watch?v=nBaX50HVOUs">
+                                <button type="button" class="btn-icon btn-remove" onclick="removeInput(this)" disabled>×</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-add" onclick="addInput('t2-input-container', 't2-video', '영상 주소 추가 입력')">+ 영상 추가</button>
+                    </div>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">STEP 2. 데이터 추출 실행</div>
+                    <div class="step-content">
+                        <button id="t2-run" class="btn-run">
+                            <span class="btn-main-text">EXTRACT COMMENTS</span>
+                            <span class="btn-sub-text">댓글 수에 따라 다소 시간이 소요될 수 있습니다.</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 3 -->
+            <div id="tab-3" class="tab-content hidden">
+                <h3>다중 영상 댓글 일괄 추출</h3>
+                <p class="tab-desc">채널 내의 여러 영상(최근 N개 또는 특정 기간)을 조건으로 걸어, 해당하는 모든 영상의 댓글을 한 번에 대량 수집합니다.</p>
+                
+                <div class="step-box">
+                    <div class="step-header">STEP 1. 채널 주소 입력</div>
+                    <div class="step-content form-group">
+                        <label>분석할 채널 주소 (핸들 또는 URL 입력)</label>
+                        <div class="dynamic-inputs" id="t3-input-container">
+                            <div class="input-row">
+                                <input type="text" class="t3-channel" placeholder="예: https://www.youtube.com/@SamsungElectronics">
+                                <button type="button" class="btn-icon btn-remove" onclick="removeInput(this)" disabled>×</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-add" onclick="addInput('t3-input-container', 't3-channel', '채널 주소 추가 입력')">+ 채널 추가</button>
+                    </div>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">STEP 2. 옵션 설정</div>
+                    <div class="step-content">
+                        <div class="segmented-control">
+                            <label class="segment-label">
+                                <input type="radio" name="t3-opt" value="recent" checked>
+                                <div class="segment-btn">최근 N개 영상</div>
+                            </label>
+                            <label class="segment-label">
+                                <input type="radio" name="t3-opt" value="date">
+                                <div class="segment-btn">특정 기간 설정</div>
+                            </label>
+                        </div>
+                        
+                        <div class="accordion-container">
+                            <div id="t3-recent-params" class="accordion-panel open form-group">
+                                <label>추출할 최근 영상 개수</label>
+                                <input type="number" id="t3-recent-n" placeholder="예: 20" value="20">
+                            </div>
+
+                            <div id="t3-date-params" class="accordion-panel form-group">
+                                <label>조회 시작일</label>
+                                <input type="date" id="t3-start-date" style="margin-bottom:12px;">
+                                <label>조회 종료일</label>
+                                <input type="date" id="t3-end-date">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-box">
+                    <div class="step-header">STEP 3. 데이터 대량 추출 실행</div>
+                    <div class="step-content">
+                        <button id="t3-run" class="btn-run">
+                            <span class="btn-main-text">EXTRACT ALL COMMENTS</span>
+                            <span class="btn-sub-text">대용량 처리 과정입니다. 브라우저를 닫지 마세요.</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 콘솔(실행 로그창) UI -->
+        <div class="console-wrapper">
+            <div class="console-header">
+                <div class="circles">
+                    <span></span><span></span><span></span>
+                </div>
+                <div>SYSTEM LOG</div>
+            </div>
+            <div id="console-output" class="console">시스템 로딩이 완료되었습니다. 우측 상단의 [API KEY SETUP]을 통해 키를 먼저 등록해주세요.</div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
