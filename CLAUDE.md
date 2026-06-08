@@ -22,7 +22,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. **전역 상태 & UI 매핑** — `API_KEY`는 `localStorage`(`YT_API_KEY`)에 저장. `UI` 객체가 모든 DOM 요소를 한곳에 모음. 서버 없음 → 키는 사용자 브라우저에만 보관.
 2. **공통 유틸** — `log()`(콘솔 UI 출력), 동적 입력행 추가/삭제, 탭/라디오/형식버튼 이벤트 바인딩(`initUI()`).
-3. **출력 형식 레이어** — `getSelectedFormat(tabId)` → `saveData()`가 형식에 따라 `saveExcel`/`saveWord`/`savePPT`로 분기. **세 탭 모두 이 단일 진입점을 통해 저장한다.**
+3. **출력 형식 레이어** — `getSelectedFormat(tabId)` → `saveData(sheetsObj, baseName, tabId, commentTexts)`가 형식에 따라 `saveExcel`/`saveWord`/`savePPT`로 분기. **세 탭 모두 이 단일 진입점을 통해 저장한다.** 4번째 인자 `commentTexts`가 있으면(탭2/탭3) 인사이트를 계산해 보고서에 삽입한다(탭1은 생략).
+   - **2-2 댓글 인사이트** — `analyzeComments(texts)`가 ① 감성 댓글 건수(긍/부/중립), ② 극성별 단어 리스트(`sentimentWords.positive/negative/neutral`, 각 단어+빈도), ③ 키워드 TOP15를 반환. 감성 건수는 **KNU 한국어 감성사전**(`data/senti_dict.json`, 런타임 `fetch`로 1회 로드 후 `SENTI_MAP` 캐시; `ensureSentiDict()`)의 극성 점수 합산 + 부정어 반전(`commentScore()`)으로 계산. 단어 리스트는 토큰 각각의 극성(`lookupScore()`)으로 분류. 사전 로드 실패 시 `POSITIVE_WORDS`/`NEGATIVE_WORDS` 자체 사전으로 폴백. (워드클라우드 기능은 제거됨 — 표/리스트로만 표현.)
 4. **파싱 헬퍼** — URL에서 채널/영상 ID 추출, `parseDurationType`(61초 이하=쇼츠), `formatDateKST`(KST 변환).
 5. **YouTube API 래퍼** — `apiGet()`이 모든 호출의 단일 통로(키 주입·에러 처리). `getChannelVideos()`는 **모드별로 다른 엔드포인트를 쓴다**: `recent`는 playlistItems(쿼터 저렴), `date`는 search(쿼터 비쌈).
 6. **탭 핸들러** — `t1Run`(채널 종합 지표), `t2Run`(단일 영상 댓글), `t3Run`(채널 내 다중 영상 댓글 대량 수집). 댓글 수집은 `scrapeVideoComments()` 공용 함수로 대댓글 페이징까지 처리.
