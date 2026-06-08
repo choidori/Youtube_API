@@ -127,12 +127,167 @@ function initUI() {
         });
     });
 
+    // 출력 형식 버튼 이벤트
+    document.querySelectorAll('.format-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            document.querySelectorAll(`.format-btn[data-tab="${tab}"]`).forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+
     // 기본 안내 표시
     if (!API_KEY) {
         setTimeout(() => UI.modal.classList.remove('hidden'), 500);
     }
 }
 initUI();
+
+// ==========================================
+// 2-1. 출력 형식 선택 헬퍼 및 Word/PPT 저장 함수
+// ==========================================
+function getSelectedFormat(tabId) {
+    const activeBtn = document.querySelector(`.format-btn.active[data-tab="${tabId}"]`);
+    return activeBtn ? activeBtn.dataset.format : 'excel';
+}
+
+async function saveWord(sheetsObj, filename) {
+    try {
+        const { Document, Packer, Paragraph, Table, TableRow, TableCell,
+                TextRun, HeadingLevel, WidthType, ShadingType, AlignmentType } = docx;
+        const sectionChildren = [];
+
+        // 표지 타이틀
+        sectionChildren.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: 'YouTube Stats Analyzer 보고서', bold: true, size: 52 })],
+        }));
+        sectionChildren.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: '생성일: ' + new Date().toLocaleDateString('ko-KR'), size: 22, color: '888888' })],
+        }));
+        sectionChildren.push(new Paragraph({ text: '' }));
+
+        for (const sheetName in sheetsObj) {
+            const rows = sheetsObj[sheetName];
+            if (!rows || rows.length === 0) continue;
+            const cleanName = sheetName.replace(/[📊📈📋💬]/g, '').trim();
+
+            sectionChildren.push(new Paragraph({
+                heading: HeadingLevel.HEADING_1,
+                children: [new TextRun({ text: cleanName, bold: true })],
+            }));
+
+            const headers = Object.keys(rows[0]);
+            const tableRows = [
+                new TableRow({
+                    tableHeader: true,
+                    children: headers.map(h => new TableCell({
+                        shading: { fill: '000000', type: ShadingType.CLEAR, color: 'auto' },
+                        children: [new Paragraph({
+                            children: [new TextRun({ text: h, bold: true, color: 'FFFFFF', size: 18 })],
+                        })],
+                    })),
+                }),
+                ...rows.map(row => new TableRow({
+                    children: headers.map(h => new TableCell({
+                        children: [new Paragraph({
+                            children: [new TextRun({ text: String(row[h] ?? ''), size: 18 })],
+                        })],
+                    })),
+                })),
+            ];
+
+            sectionChildren.push(new Table({
+                rows: tableRows,
+                width: { size: 100, type: WidthType.PERCENTAGE },
+            }));
+            sectionChildren.push(new Paragraph({ text: '' }));
+        }
+
+        const doc = new Document({ sections: [{ children: sectionChildren }] });
+        const blob = await Packer.toBlob(doc);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) { throw new Error('Word 생성 실패: ' + e.message); }
+}
+
+function savePPT(sheetsObj, filename) {
+    try {
+        const pptx = new PptxGenJS();
+        pptx.layout = 'LAYOUT_WIDE';
+
+        // 타이틀 슬라이드
+        const titleSlide = pptx.addSlide();
+        titleSlide.background = { color: '000000' };
+        titleSlide.addText('YOUTUBE STATS ANALYZER', {
+            x: 0.5, y: 1.8, w: '90%', h: 1.5,
+            fontSize: 40, bold: true, color: 'FFFFFF', align: 'center',
+        });
+        titleSlide.addText(new Date().toLocaleDateString('ko-KR') + ' 기준 보고서', {
+            x: 0.5, y: 3.5, w: '90%', h: 0.8, fontSize: 18, color: 'AAAAAA', align: 'center',
+        });
+
+        for (const sheetName in sheetsObj) {
+            const rows = sheetsObj[sheetName];
+            if (!rows || rows.length === 0) continue;
+            const headers = Object.keys(rows[0]);
+            const cleanName = sheetName.replace(/[📊📈📋💬]/g, '').trim();
+            const chunkSize = 14;
+
+            for (let i = 0; i < rows.length; i += chunkSize) {
+                const chunk = rows.slice(i, i + chunkSize);
+                const slide = pptx.addSlide();
+                slide.background = { color: 'FFFFFF' };
+
+                const pageInfo = rows.length > chunkSize
+                    ? ` (${i + 1}~${Math.min(i + chunkSize, rows.length)} / 총 ${rows.length}건)` : '';
+                slide.addText(cleanName + pageInfo, {
+                    x: 0, y: 0, w: '100%', h: 0.65,
+                    fontSize: 15, bold: true, color: 'FFFFFF',
+                    fill: { color: '000000' }, valign: 'middle', margin: [0, 0, 0, 12],
+                });
+
+                const colW = parseFloat((12.8 / headers.length).toFixed(2));
+                const headerRow = headers.map(h => ({
+                    text: h,
+                    options: { bold: true, fill: '333333', color: 'FFFFFF', fontSize: 9, align: 'center', valign: 'middle' }
+                }));
+                const dataRows = chunk.map((row, ri) => headers.map(h => ({
+                    text: String(row[h] ?? ''),
+                    options: { fontSize: 8, valign: 'middle', fill: ri % 2 === 0 ? 'FFFFFF' : 'F5F5F5' }
+                })));
+
+                slide.addTable([headerRow, ...dataRows], {
+                    x: 0.2, y: 0.78, w: 12.8,
+                    colW: Array(headers.length).fill(colW),
+                    border: { type: 'solid', pt: 0.3, color: 'DDDDDD' },
+                    rowH: 0.28,
+                });
+            }
+        }
+
+        pptx.writeFile({ fileName: filename });
+    } catch (e) { throw new Error('PPT 생성 실패: ' + e.message); }
+}
+
+async function saveData(sheetsObj, baseName, tabId) {
+    const format = getSelectedFormat(tabId);
+    const extMap = { word: 'docx', ppt: 'pptx', excel: 'xlsx' };
+    const ext = extMap[format] || 'xlsx';
+    log(`📦 ${format.toUpperCase()} 형식으로 파일 생성 중...`);
+    if (format === 'word') {
+        await saveWord(sheetsObj, `${baseName}.docx`);
+    } else if (format === 'ppt') {
+        savePPT(sheetsObj, `${baseName}.pptx`);
+    } else {
+        saveExcel(sheetsObj, `${baseName}.xlsx`);
+    }
+    return `${baseName}.${ext}`;
+}
 
 // ==========================================
 // 3. 파싱 스크립트 함수 (Python to JS)
@@ -355,8 +510,7 @@ UI.t1Run.addEventListener('click', async () => {
 
         // 병합
         let finalOutput = { "📊 성과 요약": summaryData, ...sheetsData };
-        const fname = `유튜브통계분석_${new Date().getTime()}.xlsx`;
-        saveExcel(finalOutput, fname);
+        const fname = await saveData(finalOutput, `유튜브통계분석_${new Date().getTime()}`, 't1');
         log(`🎉 다운로드 완료: ${fname}`, "success");
 
     } catch (err) {
@@ -471,8 +625,8 @@ UI.t2Run.addEventListener('click', async () => {
         if (allSummaries.length === 0) throw new Error("저장할 데이터가 없습니다.");
 
         finalOutput = { "📊 댓글 요약": allSummaries, ...finalOutput };
-        saveExcel(finalOutput, `유튜브_댓글추출_${new Date().getTime()}.xlsx`);
-        log(`🎉 다운로드 완료`, "success");
+        const fname = await saveData(finalOutput, `유튜브_댓글추출_${new Date().getTime()}`, 't2');
+        log(`🎉 다운로드 완료: ${fname}`, "success");
 
     } catch (e) {
         log(e.message, "error");
@@ -550,8 +704,8 @@ UI.t3Run.addEventListener('click', async () => {
         if (allSummaries.length === 0) throw new Error("추출 결과가 없습니다.");
 
         let finalOutput = { "📊 영상별 댓글 요약": allSummaries, ...finalChannelsData };
-        saveExcel(finalOutput, `채널기반_대량댓글분석_${new Date().getTime()}.xlsx`);
-        log(`🎉 대규모 다운로드 완료!`, "success");
+        const fname = await saveData(finalOutput, `채널기반_대량댓글분석_${new Date().getTime()}`, 't3');
+        log(`🎉 대규모 다운로드 완료: ${fname}`, "success");
 
     } catch (e) {
         log(e.message, "error");

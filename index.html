@@ -7,6 +7,8 @@
     <title>YouTube 성과 분석 솔루션</title>
     <link href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -114,9 +116,23 @@
                 <div class="step-box">
                     <div class="step-header">STEP 3. 데이터 추출 실행</div>
                     <div class="step-content">
+                        <div class="format-selector" id="t1-format-selector">
+                            <span class="format-label">출력 형식</span>
+                            <div class="format-btns">
+                                <button type="button" class="format-btn active" data-format="excel" data-tab="t1">
+                                    <span class="format-icon">📊</span> Excel
+                                </button>
+                                <button type="button" class="format-btn" data-format="word" data-tab="t1">
+                                    <span class="format-icon">📝</span> Word
+                                </button>
+                                <button type="button" class="format-btn" data-format="ppt" data-tab="t1">
+                                    <span class="format-icon">📋</span> PPT
+                                </button>
+                            </div>
+                        </div>
                         <button id="t1-run" class="btn-run">
                             <span class="btn-main-text">EXTRACT DATA</span>
-                            <span class="btn-sub-text">분석 완료 후 엑셀 파일을 자동 다운로드합니다.</span>
+                            <span class="btn-sub-text">분석 완료 후 선택한 형식으로 자동 다운로드합니다.</span>
                         </button>
                     </div>
                 </div>
@@ -144,6 +160,20 @@
                 <div class="step-box">
                     <div class="step-header">STEP 2. 데이터 추출 실행</div>
                     <div class="step-content">
+                        <div class="format-selector" id="t2-format-selector">
+                            <span class="format-label">출력 형식</span>
+                            <div class="format-btns">
+                                <button type="button" class="format-btn active" data-format="excel" data-tab="t2">
+                                    <span class="format-icon">📊</span> Excel
+                                </button>
+                                <button type="button" class="format-btn" data-format="word" data-tab="t2">
+                                    <span class="format-icon">📝</span> Word
+                                </button>
+                                <button type="button" class="format-btn" data-format="ppt" data-tab="t2">
+                                    <span class="format-icon">📋</span> PPT
+                                </button>
+                            </div>
+                        </div>
                         <button id="t2-run" class="btn-run">
                             <span class="btn-main-text">EXTRACT COMMENTS</span>
                             <span class="btn-sub-text">댓글 수에 따라 다소 시간이 소요될 수 있습니다.</span>
@@ -204,6 +234,20 @@
                 <div class="step-box">
                     <div class="step-header">STEP 3. 데이터 대량 추출 실행</div>
                     <div class="step-content">
+                        <div class="format-selector" id="t3-format-selector">
+                            <span class="format-label">출력 형식</span>
+                            <div class="format-btns">
+                                <button type="button" class="format-btn active" data-format="excel" data-tab="t3">
+                                    <span class="format-icon">📊</span> Excel
+                                </button>
+                                <button type="button" class="format-btn" data-format="word" data-tab="t3">
+                                    <span class="format-icon">📝</span> Word
+                                </button>
+                                <button type="button" class="format-btn" data-format="ppt" data-tab="t3">
+                                    <span class="format-icon">📋</span> PPT
+                                </button>
+                            </div>
+                        </div>
                         <button id="t3-run" class="btn-run">
                             <span class="btn-main-text">EXTRACT ALL COMMENTS</span>
                             <span class="btn-sub-text">대용량 처리 과정입니다. 브라우저를 닫지 마세요.</span>
