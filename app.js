@@ -136,6 +136,25 @@ function initUI() {
         });
     });
 
+    // Hero 타이틀 클릭 시 위트 버전으로 토글 (다시 클릭하면 원복)
+    const heroKv = document.querySelector('.hero-kv');
+    const heroTitle = document.querySelector('.hero-title');
+    const heroSub = document.querySelector('.hero-subtitle');
+    if (heroKv && heroTitle && heroSub) {
+        const heroDefault = { title: heroTitle.innerHTML, sub: heroSub.innerHTML };
+        const heroJoe = {
+            title: '유<span class="t-sm">튜브</span> <span class="t-sm">분</span>석 Joe',
+            sub: '제일러를 위한 유튜브 데이터 플랫폼<br>소소하지만 알찬 성과 인사이트'
+        };
+        let joeMode = false;
+        heroKv.addEventListener('click', () => {
+            joeMode = !joeMode;
+            heroTitle.innerHTML = joeMode ? heroJoe.title : heroDefault.title;
+            heroSub.innerHTML = joeMode ? heroJoe.sub : heroDefault.sub;
+            heroKv.classList.toggle('joe-mode', joeMode);
+        });
+    }
+
     // 기본 안내 표시
     if (!API_KEY) {
         setTimeout(() => UI.modal.classList.remove('hidden'), 500);
@@ -159,7 +178,7 @@ async function saveWord(sheetsObj, filename, insights) {
 
         // 문자열 2차원 배열(첫 행=헤더)로 표 생성하는 로컬 헬퍼
         const makeTable = (rows) => new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 0, type: WidthType.AUTO },
             rows: rows.map((cells, ri) => new TableRow({
                 tableHeader: ri === 0,
                 children: cells.map(c => new TableCell({
@@ -225,7 +244,8 @@ async function saveWord(sheetsObj, filename, insights) {
         for (const sheetName in sheetsObj) {
             const rows = sheetsObj[sheetName];
             if (!rows || rows.length === 0) continue;
-            const cleanName = sheetName.replace(/[📊📈📋💬]/g, '').trim();
+            // 슬라이드/문서 제목에서 이모지 제거 (제목에 이모지+표가 함께 있으면 PPT가 손상됨)
+            const cleanName = sheetName.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[☀-➿⬀-⯿️]/g, '').trim();
 
             sectionChildren.push(new Paragraph({
                 heading: HeadingLevel.HEADING_1,
@@ -254,7 +274,7 @@ async function saveWord(sheetsObj, filename, insights) {
 
             sectionChildren.push(new Table({
                 rows: tableRows,
-                width: { size: 100, type: WidthType.PERCENTAGE },
+                width: { size: 0, type: WidthType.AUTO },
             }));
             sectionChildren.push(new Paragraph({ text: '' }));
         }
@@ -342,7 +362,8 @@ function savePPT(sheetsObj, filename, insights) {
             const rows = sheetsObj[sheetName];
             if (!rows || rows.length === 0) continue;
             const headers = Object.keys(rows[0]);
-            const cleanName = sheetName.replace(/[📊📈📋💬]/g, '').trim();
+            // 슬라이드/문서 제목에서 이모지 제거 (제목에 이모지+표가 함께 있으면 PPT가 손상됨)
+            const cleanName = sheetName.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[☀-➿⬀-⯿️]/g, '').trim();
             const chunkSize = 14;
 
             for (let i = 0; i < rows.length; i += chunkSize) {
@@ -385,6 +406,9 @@ async function saveData(sheetsObj, baseName, tabId, commentTexts) {
     const format = getSelectedFormat(tabId);
     const extMap = { word: 'docx', ppt: 'pptx', excel: 'xlsx' };
     const ext = extMap[format] || 'xlsx';
+
+    // 유튜브 제목/댓글 등에 섞인 제어문자 제거 (제거 안 하면 Excel/PPT 파일이 손상됨)
+    sheetsObj = sanitizeSheets(sheetsObj);
 
     // 댓글 본문이 있으면(탭2/탭3) 인사이트 분석
     let insights = null;
@@ -730,15 +754,75 @@ async function getChannelVideos(channelId, mode = "recent", maxResults = 20, sta
 // ==========================================
 // 5. 엑셀 생성 기능 중심부
 // ==========================================
+// OOXML(Excel/PPT/Word)에서 허용되지 않는 제어문자 제거 — 안 그러면 "손상된 파일"이 됨
+function sanitizeXMLString(v) {
+    if (typeof v !== 'string') return v;
+    // XML 1.0 허용 문자만 남김: \t(9) \n(10) \r(13), 0x20 이상(0xFFFE/0xFFFF 제외)
+    // + 짝 없는 서러게이트(깨진 이모지) 제거 → OOXML 손상 방지
+    let out = '';
+    for (let i = 0; i < v.length; i++) {
+        const c = v.charCodeAt(i);
+        if (c === 0xFFFE || c === 0xFFFF) continue;
+        if (!(c === 9 || c === 10 || c === 13 || c >= 0x20)) continue; // 제어문자 제거
+        if (c >= 0xD800 && c <= 0xDBFF) { // high surrogate → 뒤에 low가 와야 정상
+            const next = v.charCodeAt(i + 1);
+            if (next >= 0xDC00 && next <= 0xDFFF) { out += v[i] + v[i + 1]; i++; }
+            continue; // 짝 없으면 버림
+        }
+        if (c >= 0xDC00 && c <= 0xDFFF) continue; // 짝 없는 low surrogate → 버림
+        out += v[i];
+    }
+    return out;
+}
+
+// sheetsObj 전체의 문자열 셀 값을 정제한 새 객체 반환
+function sanitizeSheets(sheetsObj) {
+    const clean = {};
+    for (const name in sheetsObj) {
+        clean[name] = (sheetsObj[name] || []).map(row => {
+            const r = {};
+            for (const k in row) r[k] = sanitizeXMLString(row[k]);
+            return r;
+        });
+    }
+    return clean;
+}
+
+// Excel 시트명 안전화: 금지문자 제거(\ / ? * [ ] :), 31자 제한, 중복 회피
+function safeSheetName(name, used) {
+    let n = (name || 'Sheet').replace(/[\\\/?*\[\]:]/g, '').trim().substring(0, 31) || 'Sheet';
+    const base = n;
+    let i = 1;
+    while (used.has(n.toLowerCase())) {
+        const suffix = '_' + (++i);
+        n = base.substring(0, 31 - suffix.length) + suffix;
+    }
+    used.add(n.toLowerCase());
+    return n;
+}
+
 function saveExcel(sheetsObj, filename, insights) {
     const wb = XLSX.utils.book_new();
     // 인사이트가 있으면 감성/키워드 시트를 앞에 삽입 (Excel은 이미지 미지원 → 표로 대체)
     const allSheets = insights ? { ...buildInsightSheets(insights), ...sheetsObj } : sheetsObj;
+    const used = new Set();
     for (const sheetName in allSheets) {
         const ws = XLSX.utils.json_to_sheet(allSheets[sheetName]);
-        XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // 시트명 길이제한 31자
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName(sheetName, used));
     }
     XLSX.writeFile(wb, filename);
+}
+
+// ISO 날짜 → KST 기준 그 주의 월요일 'YYYY-MM-DD' (주별 추이 그룹핑용)
+function getWeekStartKST(iso) {
+    const kst = new Date(new Date(iso).getTime() + 9 * 3600 * 1000); // KST로 시프트 후 UTC파트 읽기
+    const dow = kst.getUTCDay();           // 0=일 ~ 6=토
+    const diffToMon = (dow + 6) % 7;       // 월요일까지 거슬러갈 일수
+    const monday = new Date(kst.getTime() - diffToMon * 86400000);
+    const y = monday.getUTCFullYear();
+    const m = String(monday.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(monday.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
 // 탭 1 기능
@@ -776,6 +860,8 @@ UI.t1Run.addEventListener('click', async () => {
             log(`└ 영상 ${vids.length}개 탐색 완료. 세부 지표 수집을 시작합니다...`);
             let videoStats = [];
             let sumViews = 0, sumComments = 0, sumLikes = 0;
+            let pubList = [];     // 업로드 주기 계산용 ISO 날짜 목록 (쇼츠+일반 모두 포함)
+            let weekMap = {};     // 'YYYY-MM-DD(월요일)' → { count, views } (주별 추이)
 
             for (let i = 0; i < vids.length; i++) {
                 const vid = vids[i];
@@ -794,6 +880,14 @@ UI.t1Run.addEventListener('click', async () => {
 
                     sumViews += vCount; sumComments += cCount; sumLikes += lCount;
 
+                    // 업로드 주기/주별 추이용 데이터 수집 (쇼츠+일반 모두 포함)
+                    const pubISO = item.snippet.publishedAt;
+                    pubList.push(pubISO);
+                    const wk = getWeekStartKST(pubISO);
+                    if (!weekMap[wk]) weekMap[wk] = { count: 0, views: 0 };
+                    weekMap[wk].count++;
+                    weekMap[wk].views += vCount;
+
                     videoStats.push({
                         "제목": item.snippet.title,
                         "영상 종류": vType,
@@ -801,10 +895,19 @@ UI.t1Run.addEventListener('click', async () => {
                         "댓글수": cCount,
                         "좋아요": lCount,
                         "참여율(%)": parseFloat(er.toFixed(2)),
-                        "업로드일자": formatDateKST(item.snippet.publishedAt),
+                        "업로드일자": formatDateKST(pubISO),
                         "URL": `https://youtube.com/watch?v=${vid.video_id}`
                     });
                 } catch (e) { }
+            }
+
+            // 업로드 주기 계산 (쇼츠+일반 모두 포함)
+            let avgIntervalText = "-", monthlyUploadText = "-";
+            if (pubList.length >= 2) {
+                const times = pubList.map(p => new Date(p).getTime()).sort((a, b) => a - b);
+                const spanDays = (times[times.length - 1] - times[0]) / 86400000;
+                avgIntervalText = (spanDays / (times.length - 1)).toFixed(1);
+                monthlyUploadText = spanDays > 0 ? (times.length / (spanDays / 30.44)).toFixed(1) : String(times.length);
             }
 
             // 요약
@@ -817,12 +920,23 @@ UI.t1Run.addEventListener('click', async () => {
                 "총 댓글수": sumComments,
                 "총 좋아요": sumLikes,
                 "평균 채널 참여율(%)": parseFloat(avgER.toFixed(2)),
+                "평균 업로드 간격(일)": avgIntervalText,
+                "월평균 업로드수": monthlyUploadText,
                 "채널 링크": `https://youtube.com/channel/${chId}`
             });
 
             videoStats.sort((a, b) => b.조회수 - a.조회수);
             const safeName = chName.replace(/[\/*?:<>|]/g, "").substring(0, 15);
             sheetsData[`📈 ${safeName}_영상리스트`] = videoStats;
+
+            // 주별 조회수 추이 시트 (주: 해당 주의 월요일 날짜)
+            const weeklyRows = Object.keys(weekMap).sort().map(wk => ({
+                "주(월요일 시작)": wk,
+                "영상 수": weekMap[wk].count,
+                "평균 조회수": Math.round(weekMap[wk].views / weekMap[wk].count),
+                "총 조회수": weekMap[wk].views
+            }));
+            if (weeklyRows.length > 0) sheetsData[`📅 ${safeName}_주별추이`] = weeklyRows;
         }
 
         if (summaryData.length === 0) throw new Error("추출된 결과가 없습니다.");

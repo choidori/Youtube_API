@@ -449,6 +449,28 @@ input:focus {
     .hero-title { font-size: 80px; }
 }
 
+/* "빛과소금" 스타일 Hero 타이틀 — 둥근 폰트 + 흰색 글로우 */
+.hero-title {
+    font-family: 'Jua', 'Space Grotesk', sans-serif;
+    color: #ffffff;
+    letter-spacing: 0;
+    text-shadow:
+        0 0 1px rgba(0, 0, 0, 0.30),
+        0 0 16px rgba(0, 0, 0, 0.28),
+        0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* Hero 타이틀 클릭 토글 (이스터에그) */
+.hero-kv { cursor: pointer; user-select: none; }
+.hero-title .t-sm { font-size: 0.5em; }
+.hero-kv.joe-mode .hero-title { letter-spacing: 0; }
+.hero-kv.joe-mode .hero-subtitle {
+    text-transform: none;
+    letter-spacing: 0.5px;
+    line-height: 1.7;
+    font-size: 15px;
+}
+
 /* 출력 형식 선택 버튼 */
 .format-selector {
     display: flex;
